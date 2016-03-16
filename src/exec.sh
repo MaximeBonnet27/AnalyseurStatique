@@ -3,5 +3,5 @@
 domain=$1;
 file=$2;
 trace=$3;
-cat $file;
+cat -n $file;
 ./analyzer.byte -$domain -trace $file 

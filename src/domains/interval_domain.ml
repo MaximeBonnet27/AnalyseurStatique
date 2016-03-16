@@ -46,6 +46,43 @@ let gt_zero borne =
 
 let lt_zero borne = not (gt_zero borne)
 
+(* VERIFIER LES NEG_INF < NEG_INF ... *)
+let gt_bornes borneA borneB =
+        match borneA, borneB with
+        | _, POS_INF -> false
+        | NEG_INF, _ -> false
+        | POS_INF, _ -> true
+        | _, NEG_INF -> true
+        | Cst x, Cst y -> x > y
+
+let lt_bornes borneA borneB =
+        match borneA, borneB with
+        | _, NEG_INF -> false
+        | POS_INF, _ -> false
+        | NEG_INF, _ -> true
+        | _, POS_INF -> true
+        | Cst x, Cst y -> x < y
+
+let geq_bornes borneA borneB =
+        match borneA, borneB with
+        | POS_INF, POS_INF -> true
+        | NEG_INF, NEG_INF -> true
+        | _, POS_INF -> false
+        | NEG_INF, _ -> false
+        | POS_INF, _ -> true
+        | _, NEG_INF -> true
+        | Cst x, Cst y -> x >= y
+
+let leq_bornes borneA borneB =
+        match borneA, borneB with
+        | POS_INF, POS_INF -> true
+        | NEG_INF, NEG_INF -> true
+        | _, POS_INF -> true
+        | NEG_INF, _ -> true
+        | POS_INF, _ -> false
+        | _, NEG_INF -> false
+        | Cst x, Cst y -> y >= x
+
 let add_one borne =
         match borne with
         | Cst x -> Cst (Z.add x Z.one)
@@ -112,6 +149,9 @@ let erem_bornes borneA borneB =
         | Cst x, Cst y -> Cst(Z.erem x  y)
         | Cst x, POS_INF -> Cst x
         | Cst x, NEG_INF -> Cst(Z.neg  x)
+        (* Pour éviter les warnings *)
+        | _ -> Cst Z.zero
+
 
 
 
@@ -137,7 +177,7 @@ let meet intervalleA intervalleB =
         | x, TOP | TOP, x -> x
         | INTER (a,b), INTER (c, d) ->
         (* Ensembles disjoints *)
-        if (a < c && b < c) || (c < a && d < a) then
+        if (lt_bornes a c && lt_bornes b  c) || (lt_bornes c a && lt_bornes d  a) then
                 BOT
         else
                 INTER ((max a c),(min b d))
@@ -149,11 +189,10 @@ let join intervalleA intervalleB =
         | BOT, x | x, BOT -> x
         | INTER (a, b), INTER (c, d) -> INTER ((min a c), (max b d))
 
-(* TODO *)
 let subset intervalleA intervalleB =
         match intervalleA, intervalleB with
         | BOT,_ | _,TOP -> true
-        | INTER (a, b), INTER (c, d) -> a >= c && b <= d
+        | INTER (a, b), INTER (c, d) -> geq_bornes a c && leq_bornes b d
         | _ -> false
 
 let is_bottom x =
@@ -253,6 +292,7 @@ let neq interA interB =
                 else if a = d then
                         interA, INTER(c, sub_one d)
                 else
+                        (*TODO peut etre BOT, BOT *)
                         interA, interB
         (* Deuxième intervalle est une constante *)
         else if c = d then
@@ -274,39 +314,84 @@ let geq interA interB =
         | TOP, INTER(a, b) -> INTER(a, POS_INF), INTER(a, b)
         | INTER(a, b), TOP -> INTER(a, b), INTER(NEG_INF, b)
         | INTER(a, b), INTER(c, d) ->
-                (* Tout le premier intervalle est inférieur au deuxieme *)
-                if b < c then
-                        BOT, BOT
-                (* c entre a et b *)
-                else
-                let borne_sup = min b d in
-                if c >= a && b >= c then
-                        INTER(c, b), INTER(c, borne_sup)
-                else
-                        interA, INTER(c, borne_sup)
+                Format.printf "[%s, %s] >= [%s, %s]\n" (print_borne a) (print_borne b) (print_borne c) (print_borne d);
+                (*
+                Format.printf "RES1 : [%s, %s],[%s, %s]\n" (print_borne c) (print_borne b) (print_borne c) (print_borne borne_sup);
+                *)
+                if c <= a then
+                        if d <= a then
+                                begin
+                                        Format.printf "RES1 : [%s, %s],[%s, %s]\n" (print_borne a) (print_borne b) (print_borne c) (print_borne d);
+                                        interA, interB
+                                end
+                        else if d <= b then
+                                begin
+                                        Format.printf "RES2 : [%s, %s],[%s, %s]\n" (print_borne a) (print_borne b) (print_borne c) (print_borne d);
+                                        interA, interB
+                                end
+                        else
+                                begin
+                                        Format.printf "RES3 : [%s, %s],[%s, %s]\n" (print_borne a) (print_borne b) (print_borne a) (print_borne b);
+                                        interA, interA
+                                end
+                else if c <= b then
+                        if d <= b then
+                                begin
+                                        Format.printf "RES4 : [%s, %s],[%s, %s]\n" (print_borne c) (print_borne b) (print_borne c) (print_borne d);
+                                        INTER(c, b), interB
+                                end
+                        else
+                                begin
+                                        Format.printf "RES5 : [%s, %s],[%s, %s]\n" (print_borne c) (print_borne b) (print_borne c) (print_borne b);
+                                        INTER(c, b), INTER(c, b)
+                                end
+                else (* c et d > b *)
+                        begin
+                                print_string "RES6 : BOT, BOT\n";
+                                BOT, BOT
+                        end
 
 (* Première version (y) *)
 let gt interA interB =
         match interA, interB with
-        | BOT, _ | _, BOT -> interA, interB
-        | _, TOP -> BOT, BOT
+        | BOT, _ -> BOT, BOT
+        | TOP, BOT -> interA, interB
+        | TOP, TOP -> interA, interB
+        | _, BOT -> interA, interB
         | TOP, INTER(a, b) -> INTER(add_one b, POS_INF), INTER(a, b)
+        | INTER(a, b), TOP -> INTER(a, b), INTER(NEG_INF, sub_one a)
         | INTER(a, b), INTER(c, d) ->
+        Format.printf "[%s, %s] > [%s, %s]\n" (print_borne a) (print_borne b) (print_borne c) (print_borne d);
+
         (* Tout le premier intervalle est inférieur au deuxieme *)
-        if b < c then
+        if lt_bornes b c then
                 BOT, BOT
+        else if gt_bornes a d then
+                begin
+                Format.printf "RES : [%s, %s], [%s, %s]\n" (print_borne a) (print_borne b) (print_borne c) (print_borne d);
+                interA, interB
+                end
         else
                 (* c entre a et b *)
-                if c >= a && b > c then
+                if geq_bornes c a && gt_bornes b  c then
                         if c = d then
+                                begin
+                                Format.printf "RES : [%s, %s], [%s, %s]\n" (print_borne (add_one c)) (print_borne b) (print_borne c) (print_borne c);
                                 INTER(add_one c, b), INTER(c, c)
+                                end
                         else
-                                INTER(add_one c, b), INTER(c, c)
+                                begin
+                                Format.printf "RES : [%s, %s], [%s, %s]\n" (print_borne (add_one c)) (print_borne b) (print_borne c) (print_borne (sub_one b));
+                                INTER(add_one c, b), INTER(c, sub_one b)
+                                end
                 else
                         if b = d then
                                 BOT, BOT
                         else
+                                begin
+                                Format.printf "RES : [%s, %s], [%s, %s]\n" (print_borne a) (print_borne b) (print_borne c) (print_borne (max c (sub_one b)));
                                 interA, INTER(c, max c (sub_one b) )
+                                end
 
 
 let bwd_unary inter op r =
@@ -326,9 +411,19 @@ let bwd_binary x y op r =
         (* TODO *)
         | AST_MODULO   -> x, y
 
-(* TODO *)
-let widen = join
 
+let widen inter interNext =
+        match inter, interNext with
+        | INTER(a, b), INTER(c, d) ->
+                Format.printf "WIDEN : [%s, %s] & [%s, %s]\n" (print_borne a) (print_borne b) (print_borne c) (print_borne d);
+                let lower_bound = if lt_bornes c a then NEG_INF else a in
+                let upper_bound = if gt_bornes d  b then POS_INF else b in
+                        begin
+                        Format.printf "RES : [%s, %s]\n" (print_borne lower_bound) (print_borne upper_bound);
+                        INTER(lower_bound, upper_bound)
+                        end
+        | TOP, _ | _, TOP -> TOP
+        | BOT, _ | _, BOT -> BOT
 
 let unary inter op = match op with
         | AST_UNARY_PLUS  -> inter

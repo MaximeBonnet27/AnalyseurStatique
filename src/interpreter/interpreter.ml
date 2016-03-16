@@ -155,9 +155,19 @@ module Interprete(D : DOMAIN) =
     | AST_while (e,s) ->
         (* simple fixpoint *)
         let rec fix (f:t -> t) (x:t) : t =
-          let fx = f x in
-          if D.subset fx x then fx
-          else fix f fx
+          let fx = D.widen x (f x) in
+          Format.printf "fx = %a@\n" D.print_all fx;
+          Format.printf "x = %a@\n" D.print_all x;
+            if D.subset fx x then
+            begin
+                print_string "subset OK\n";
+                fx
+            end
+          else
+                begin
+                        print_string "subset KO\n";
+                        fix f fx
+                end
         in
         (* function to accumulate one more loop iteration:
            F(X(n+1)) = X(0) U body(F(X(n)
@@ -166,13 +176,12 @@ module Interprete(D : DOMAIN) =
         let f x = D.join a (eval_stat (filter x e true) s) in
         (* compute fixpoint from the initial state (i.e., a loop invariant) *)
         let inv = fix f a in
+                print_string "Invariant : ";
+                Format.printf "%a@\n" D.print_all inv;
         (* and then filter by exit condition *)
         filter inv e false
 
     | AST_assert e ->
-        (* not implemented *)
-        (* to be sound, we return the argument unchanged *)
-        (* a *)
 
         (* Get the environments that don't satisfy the assert clause *)
         let not_satisfy_assert = filter a e false in

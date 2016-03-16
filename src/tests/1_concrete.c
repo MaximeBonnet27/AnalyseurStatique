@@ -1,12 +1,10 @@
 {
 	int x;
-	int y;
-	x = 2;
-	x = 3;
-	y = 0;
-	y = 1;
-
-	while(x < 10){
-		x = x - 1;
-	}
+        int y;
+        x = rand(10, 20);
+        y = rand(5, 15);
+        if(x == y){
+                print(x, y);
+        }
+        print(x, y);
 }
